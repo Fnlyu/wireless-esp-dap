@@ -129,24 +129,35 @@ void tcp_server_task(void *pvParameters)
             header = *((int *)(tcp_rx_buffer));
             header = ntohl(header);
 
-            if (header == EL_LINK_IDENTIFIER) {
+            // 协议请求分发，头部的前4个字节是协议标识符，后面是数据部分
+            //  elaphureLink 协议
+            if (header == EL_LINK_IDENTIFIER)
+            {
                 el_dap_work(tcp_rx_buffer, sizeof(tcp_rx_buffer));
-            } else if ((header & 0xFFFF) == 0x8003 ||
-                       (header & 0xFFFF) == 0x8005) { // usbip OP_REQ_DEVLIST/OP_REQ_IMPORT
+            }
+            // USBIP 协议
+            else if ((header & 0xFFFF) == 0x8003 ||
+                     (header & 0xFFFF) == 0x8005)
+            { // usbip OP_REQ_DEVLIST/OP_REQ_IMPORT
                 if ((header & 0xFFFF) == 0x8005)
                     usbip_state = WAIT_DEVLIST;
                 else
                     usbip_state = WAIT_IMPORT;
                 usbip_worker(tcp_rx_buffer, sizeof(tcp_rx_buffer), &usbip_state);
-            } else if (header == 0x47455420) { // string "GET "
+            }
+            // WebSocket 协议
+            else if (header == 0x47455420)
+            { // string "GET "
 #ifdef CONFIG_USE_WEBSOCKET_DAP
                 websocket_worker(kSock, tcp_rx_buffer, sizeof(tcp_rx_buffer));
 #endif
-            } else {
+            }
+            else
+            {
                 os_printf("Unknown protocol\n");
             }
 
-cleanup:
+        cleanup:
             if (kSock != -1)
             {
                 os_printf("Shutting down socket and restarting...\r\n");
