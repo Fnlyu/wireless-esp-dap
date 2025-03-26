@@ -73,7 +73,7 @@ static RingbufHandle_t dap_dataIN_handle = NULL;
 static RingbufHandle_t dap_dataOUT_handle = NULL;
 static SemaphoreHandle_t data_response_mux = NULL;
 
-
+//malloc_dap_ringbuf用于创建DAP环形缓冲区， 并在创建成功后返回指向环形缓冲区的指针，保证线程安全
 void malloc_dap_ringbuf() {
     if (data_response_mux && xSemaphoreTake(data_response_mux, portMAX_DELAY) == pdTRUE)
     {
@@ -88,6 +88,7 @@ void malloc_dap_ringbuf() {
     }
 }
 
+/// free_dap_ringbuf用于释放DAP环形缓冲区， 并在释放成功后返回指向环形缓冲区的指针，保证线程安全
 void free_dap_ringbuf() {
     if (data_response_mux && xSemaphoreTake(data_response_mux, portMAX_DELAY) == pdTRUE) {
         if (dap_dataIN_handle) {
@@ -103,7 +104,8 @@ void free_dap_ringbuf() {
 
 }
 
-
+//handle_dap_data_request 函数处理 USBIP 阶段2数据请求，通过将数据指针指向 URB 包的开始，
+//并根据条件编译选项发送数据到环形缓冲区，同时通知相关任务
 void handle_dap_data_request(usbip_stage2_header *header, uint32_t length)
 {
     uint8_t *data_in = (uint8_t *)header;
@@ -131,6 +133,9 @@ void handle_dap_data_request(usbip_stage2_header *header, uint32_t length)
     // send_stage2_submit(header, 0, 0);
 }
 
+
+//handle_swo_trace_response 函数处理 SWO 跟踪响应，根据 SWO_FUNCTION_ENABLE 宏的值决定是否发送 SWO 数据，
+//如果有数据需要发送则调用 send_stage2_submit_data 函数，否则调用 send_stage2_submit 函数。
 void handle_swo_trace_response(usbip_stage2_header *header)
 {
 #if (SWO_FUNCTION_ENABLE == 1)
@@ -151,7 +156,7 @@ void handle_swo_trace_response(usbip_stage2_header *header)
 #endif
 }
 
-// SWO Data Queue Transfer
+// SWO Data Queue Transfer   将数据缓冲区 buf 中的 num 字节数据传输到 SWO 数据队列。
 //   buf:    pointer to buffer with data
 //   num:    number of bytes to transfer
 void SWO_QueueTransfer(uint8_t *buf, uint32_t num)
@@ -160,6 +165,8 @@ void SWO_QueueTransfer(uint8_t *buf, uint32_t num)
     swo_data_num = num;
 }
 
+
+//一个用于处理 DAP 数据包的线程函数。它创建并管理输入和输出环形缓冲区，处理接收到的数据包，并将处理后的数据包发送到输出缓冲区。
 void DAP_Thread(void *argument)
 {
     dap_dataIN_handle = xRingbufferCreate(DAP_HANDLE_SIZE * DAP_BUFFER_NUM, RINGBUF_TYPE_BYTEBUF);
@@ -206,7 +213,7 @@ void DAP_Thread(void *argument)
 
             packetSize = 0;
             item = (DapPacket_t *)xRingbufferReceiveUpTo(dap_dataIN_handle, &packetSize,
-                                                         pdMS_TO_TICKS(1), DAP_HANDLE_SIZE);
+                                                            pdMS_TO_TICKS(1), DAP_HANDLE_SIZE);
             if (packetSize == 0)
             {
                 break;
@@ -253,7 +260,7 @@ int fast_reply(uint8_t *buf, uint32_t length, int dap_req_num)
         DapPacket_t *item;
         size_t packetSize = 0;
         item = (DapPacket_t *)xRingbufferReceiveUpTo(dap_dataOUT_handle, &packetSize,
-                                                     portMAX_DELAY, DAP_HANDLE_SIZE);
+                                                        portMAX_DELAY, DAP_HANDLE_SIZE);
         if (packetSize == DAP_HANDLE_SIZE) {
 #if (USE_WINUSB == 1)
             send_stage2_submit_data_fast((usbip_stage2_header *)buf, item->buf, item->length);
@@ -285,6 +292,9 @@ int fast_reply(uint8_t *buf, uint32_t length, int dap_req_num)
     return 0;
 }
 
+
+//handle_dap_unlink 函数处理 USBIP_CMD_UNLINK 命令，通过清理可能返回给主机的数据缓冲区来解决由于 UNLINK 操作
+//      导致的滞后响应问题，并确保同步操作以避免 URB 传输操作中的潜在问题。
 void handle_dap_unlink()
 {
     // `USBIP_CMD_UNLINK` means calling `usb_unlink_urb()` or `usb_kill_urb()`.
@@ -305,7 +315,7 @@ void handle_dap_unlink()
         DapPacket_t *item;
         size_t packetSize = 0;
         item = (DapPacket_t *)xRingbufferReceiveUpTo(dap_dataOUT_handle, &packetSize,
-                                                     pdMS_TO_TICKS(10), DAP_HANDLE_SIZE);
+                                                        pdMS_TO_TICKS(10), DAP_HANDLE_SIZE);
         if (packetSize == DAP_HANDLE_SIZE)
         {
             if (xSemaphoreTake(data_response_mux, portMAX_DELAY) == pdTRUE)

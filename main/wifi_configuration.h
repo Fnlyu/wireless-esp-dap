@@ -37,7 +37,7 @@ static struct {
 #define DAP_IP_NETMASK 255, 255, 255, 0
 //
 
-#define USE_OTA              0              //打开OTA功能  
+#define USE_OTA              1              //打开OTA功能  
 
 #define USE_UART_BRIDGE      1              //打开串口桥接功能
 #define UART_BRIDGE_PORT     1234           //串口桥接TCP端口号
