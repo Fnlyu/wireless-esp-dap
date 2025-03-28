@@ -113,12 +113,12 @@ void app_main() {
     co_handle_t handle;
     co_config_t config = {
         .thread_name = "corsacOTA",
-        .stack_size = 3192,
-        .thread_prio = 8,
+        .stack_size = 3192,  //stack size for corsacOTA thread  stack堆栈
+        .thread_prio = 8,     //thread priority for corsacOTA
         .listen_port = 3241,
         .max_listen_num = 2,
         .wait_timeout_sec = 60,
-        .wait_timeout_usec = 0,
+        .wait_timeout_usec = 0, // 0 means no timeout, otherwise it will be set to 1 second
     };
 
     corsacOTA_init(&handle, &config);
